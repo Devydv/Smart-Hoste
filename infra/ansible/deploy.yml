@@ -14,7 +14,7 @@
         name:
           - git
           - docker.io
-          - docker-compose-plugin
+          - docker-compose
         state: present
         update_cache: true
 
@@ -38,6 +38,11 @@
         force: true
 
     - name: Build and start containers
-      command: docker compose up -d --build
+      shell: |
+        if docker compose version >/dev/null 2>&1; then
+          docker compose up -d --build
+        else
+          docker-compose up -d --build
+        fi
       args:
         chdir: "{{ app_dir }}"
