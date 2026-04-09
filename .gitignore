@@ -13,6 +13,10 @@ __pycache__/
 *.tfstate
 *.tfstate.*
 terraform.tfvars
+tfplan
 
 # Docker
 mysql_data/
+
+# Local deployment files
+infra/ansible/inventory.ini
