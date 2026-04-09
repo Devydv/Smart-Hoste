@@ -68,6 +68,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     env:
       ANSIBLE_HOST_KEY_CHECKING: "False"
+      ANSIBLE_TIMEOUT: "30"
 
     steps:
       - name: Checkout
@@ -103,13 +104,18 @@ jobs:
         run: |
           cat > /tmp/inventory.ini <<'EOF'
           [app]
-          app-server ansible_host=${{ secrets.EC2_HOST }} ansible_user=${{ secrets.EC2_USER }} ansible_ssh_private_key_file=/tmp/deploy_key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+          app-server ansible_host=${{ secrets.EC2_HOST }} ansible_user=${{ secrets.EC2_USER }} ansible_ssh_private_key_file=/tmp/deploy_key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ConnectTimeout=15'
           EOF
+
+      - name: Pre-deploy SSH connectivity check
+        if: steps.check_secrets.outputs.enabled == 'true'
+        run: |
+          ssh -i /tmp/deploy_key.pem -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=15 "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "echo SSH_OK"
 
       - name: Deploy with Ansible
         if: steps.check_secrets.outputs.enabled == 'true'
         run: |
-          ansible-playbook -i /tmp/inventory.ini infra/ansible/deploy.yml \
+          timeout 20m ansible-playbook -i /tmp/inventory.ini infra/ansible/deploy.yml \
             --extra-vars "repo_url=https://github.com/${{ github.repository }}.git repo_branch=main app_dir=/opt/smart_hostel"
 
       - name: Post-deploy health check
