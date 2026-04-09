@@ -4,8 +4,7 @@ This project now includes a complete DevOps starter setup using:
 
 - Git and GitHub workflow
 - Docker and Docker Compose
-- GitHub Actions CI
-- Jenkins pipeline
+- GitHub Actions CI/CD
 - Terraform infrastructure templates
 - Ansible deployment playbook
 - Kubernetes manifests
@@ -26,8 +25,7 @@ smart_hostel_final/
 ├── app.py                  # Flask app entry
 ├── db.py                   # DB connection helper
 ├── docker-compose.yml
-├── Dockerfile
-└── Jenkinsfile
+└── Dockerfile
 ```
 
 ## 1) Local Run (Python)
@@ -68,13 +66,13 @@ Files used:
 ```bash
 git checkout -b feature/devops-setup
 git add .
-git commit -m "Add DevOps setup: Docker, CI, Terraform, Ansible, Kubernetes, Jenkins"
+git commit -m "Add DevOps setup: Docker, CI, Terraform, Ansible, Kubernetes"
 git push origin feature/devops-setup
 ```
 
 Then create a Pull Request to `dev` or `main`.
 
-## 4) GitHub Actions (CI)
+## 4) GitHub Actions (CI/CD)
 
 Workflow file:
 
@@ -87,34 +85,23 @@ Pipeline stages:
 3. Run pytest
 4. Build Docker image
 5. Trivy scan
+6. Deploy to EC2 with Ansible (on push to main)
+7. Post-deploy health check
 
 Trigger:
 
 - Push to `main` or `dev`
 - Any pull request
 
-## 5) Jenkins Pipeline
+### Required GitHub Secrets for CD
 
-Pipeline file:
+Set these in your repository: Settings -> Secrets and variables -> Actions.
 
-- `Jenkinsfile`
+1. `EC2_HOST` - EC2 public IP or DNS
+2. `EC2_USER` - SSH user (for Ubuntu AMI: `ubuntu`)
+3. `EC2_SSH_PRIVATE_KEY` - Full private key content for the EC2 key pair
 
-Stages included:
-
-1. Checkout
-2. Install dependencies
-3. Lint and tests
-4. Docker image build
-5. Trivy image scan
-
-To use Jenkins:
-
-1. Create a Pipeline job
-2. Connect GitHub repository
-3. Set pipeline script from SCM
-4. Build job
-
-## 6) Terraform (Infrastructure as Code)
+## 5) Terraform (Infrastructure as Code)
 
 Folder:
 
@@ -144,7 +131,7 @@ This provisions:
 - Security Group
 - EC2 instance for app deployment
 
-## 7) Ansible (Server Configuration + Deployment)
+## 6) Ansible (Server Configuration + Deployment)
 
 Folder:
 
@@ -170,7 +157,7 @@ Playbook actions:
 2. Clone project repository
 3. Run `docker compose up -d --build`
 
-## 8) Kubernetes
+## 7) Kubernetes
 
 Folder:
 
@@ -216,16 +203,16 @@ App URL (NodePort):
 
 `http://<node-ip>:30080`
 
-## 9) Recommended Submission Demo Flow
+## 8) Recommended Submission Demo Flow
 
 1. Show local run with Docker Compose
 2. Push code and show GitHub Actions CI pass
-3. Show Jenkins pipeline stages
+3. Show GitHub Actions CD deployment to EC2
 4. Show Terraform plan/apply output
 5. Show Ansible deployment output
 6. Show Kubernetes pods/services running
 
-## 10) Security Notes
+## 9) Security Notes
 
 - Do not commit real cloud credentials.
 - Replace example secrets before production use.

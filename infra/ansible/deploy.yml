@@ -5,7 +5,7 @@
 
   vars:
     app_dir: /opt/smart_hostel
-    repo_url: https://github.com/YOUR_USERNAME/smart_hostel_final.git
+    repo_url: https://github.com/Devydv/Smart-Hoste.git
     repo_branch: main
 
   tasks:
@@ -14,7 +14,7 @@
         name:
           - git
           - docker.io
-          - docker-compose-v2
+          - docker-compose-plugin
         state: present
         update_cache: true
 

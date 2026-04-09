@@ -60,3 +60,52 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             aquasec/trivy:0.52.2 \
             fs --exit-code 0 --no-progress /workspace
+
+  deploy-ec2:
+    name: CD Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: test-build-scan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.EC2_HOST != '' && secrets.EC2_USER != '' && secrets.EC2_SSH_PRIVATE_KEY != ''
+    env:
+      ANSIBLE_HOST_KEY_CHECKING: "False"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install "ansible-core>=2.16,<2.18"
+
+      - name: Validate deployment secrets
+        run: |
+          test -n "${{ secrets.EC2_HOST }}" || (echo "EC2_HOST secret is missing" && exit 1)
+          test -n "${{ secrets.EC2_USER }}" || (echo "EC2_USER secret is missing" && exit 1)
+          test -n "${{ secrets.EC2_SSH_PRIVATE_KEY }}" || (echo "EC2_SSH_PRIVATE_KEY secret is missing" && exit 1)
+
+      - name: Create SSH key file
+        run: |
+          install -m 600 /dev/null /tmp/deploy_key.pem
+          printf "%s" "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > /tmp/deploy_key.pem
+
+      - name: Create Ansible inventory
+        run: |
+          cat > /tmp/inventory.ini <<'EOF'
+          [app]
+          app-server ansible_host=${{ secrets.EC2_HOST }} ansible_user=${{ secrets.EC2_USER }} ansible_ssh_private_key_file=/tmp/deploy_key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+          EOF
+
+      - name: Deploy with Ansible
+        run: |
+          ansible-playbook -i /tmp/inventory.ini infra/ansible/deploy.yml \
+            --extra-vars "repo_url=https://github.com/${{ github.repository }}.git repo_branch=main app_dir=/opt/smart_hostel"
+
+      - name: Post-deploy health check
+        run: |
+          curl --fail --retry 20 --retry-delay 5 "http://${{ secrets.EC2_HOST }}:5000/debug/db" > /dev/null
