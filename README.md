@@ -10,6 +10,26 @@ This project now includes a complete DevOps starter setup using:
 - Ansible deployment playbook
 - Kubernetes manifests
 
+## Project Structure
+
+```text
+smart_hostel_final/
+├── .github/workflows/      # GitHub Actions CI
+├── infra/
+│   ├── ansible/            # Deployment automation
+│   ├── k8s/                # Kubernetes manifests
+│   ├── sql/                # MySQL init schema/data
+│   └── terraform/          # Infrastructure as Code
+├── static/                 # Frontend assets
+├── templates/              # Flask templates
+├── tests/                  # Test suite
+├── app.py                  # Flask app entry
+├── db.py                   # DB connection helper
+├── docker-compose.yml
+├── Dockerfile
+└── Jenkinsfile
+```
+
 ## 1) Local Run (Python)
 
 ```bash
@@ -41,7 +61,7 @@ Files used:
 
 - `Dockerfile`
 - `docker-compose.yml`
-- `devops/sql/init.sql`
+- `infra/sql/init.sql`
 
 ## 3) Git + GitHub Suggested Workflow
 
@@ -98,7 +118,7 @@ To use Jenkins:
 
 Folder:
 
-- `terraform/`
+- `infra/terraform/`
 
 Files:
 
@@ -111,7 +131,7 @@ Files:
 Usage:
 
 ```bash
-cd terraform
+cd infra/terraform
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with real IDs
 terraform init
@@ -128,7 +148,7 @@ This provisions:
 
 Folder:
 
-- `ansible/`
+- `infra/ansible/`
 
 Files:
 
@@ -138,7 +158,7 @@ Files:
 Usage:
 
 ```bash
-cd ansible
+cd infra/ansible
 cp inventory.ini.example inventory.ini
 # Edit host IP and key path
 ansible-playbook -i inventory.ini deploy.yml
@@ -154,7 +174,7 @@ Playbook actions:
 
 Folder:
 
-- `k8s/`
+- `infra/k8s/`
 
 Includes:
 
@@ -168,17 +188,17 @@ Includes:
 Usage:
 
 ```bash
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/mysql-secret.example.yaml
-kubectl apply -f k8s/mysql-init-configmap.yaml
-kubectl apply -f k8s/mysql-pvc.yaml
-kubectl apply -f k8s/mysql-deployment.yaml
-kubectl apply -f k8s/mysql-service.yaml
-kubectl apply -f k8s/app-secret.example.yaml
-kubectl apply -f k8s/app-configmap.yaml
+kubectl apply -f infra/k8s/namespace.yaml
+kubectl apply -f infra/k8s/mysql-secret.example.yaml
+kubectl apply -f infra/k8s/mysql-init-configmap.yaml
+kubectl apply -f infra/k8s/mysql-pvc.yaml
+kubectl apply -f infra/k8s/mysql-deployment.yaml
+kubectl apply -f infra/k8s/mysql-service.yaml
+kubectl apply -f infra/k8s/app-secret.example.yaml
+kubectl apply -f infra/k8s/app-configmap.yaml
 ```
 
-Before applying app deployment, set real image name in `k8s/app-deployment.yaml`:
+Before applying app deployment, set real image name in `infra/k8s/app-deployment.yaml`:
 
 ```yaml
 image: YOUR_DOCKERHUB_USERNAME/smart-hostel:latest
@@ -187,8 +207,8 @@ image: YOUR_DOCKERHUB_USERNAME/smart-hostel:latest
 Then apply:
 
 ```bash
-kubectl apply -f k8s/app-deployment.yaml
-kubectl apply -f k8s/app-service.yaml
+kubectl apply -f infra/k8s/app-deployment.yaml
+kubectl apply -f infra/k8s/app-service.yaml
 kubectl get svc -n smart-hostel
 ```
 
