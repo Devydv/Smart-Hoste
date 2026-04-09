@@ -65,7 +65,7 @@ jobs:
     name: CD Deploy to EC2
     runs-on: ubuntu-latest
     needs: test-build-scan
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.EC2_HOST != '' && secrets.EC2_USER != '' && secrets.EC2_SSH_PRIVATE_KEY != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     env:
       ANSIBLE_HOST_KEY_CHECKING: "False"
 
@@ -83,18 +83,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install "ansible-core>=2.16,<2.18"
 
-      - name: Validate deployment secrets
+      - name: Check deployment secrets
+        id: check_secrets
         run: |
-          test -n "${{ secrets.EC2_HOST }}" || (echo "EC2_HOST secret is missing" && exit 1)
-          test -n "${{ secrets.EC2_USER }}" || (echo "EC2_USER secret is missing" && exit 1)
-          test -n "${{ secrets.EC2_SSH_PRIVATE_KEY }}" || (echo "EC2_SSH_PRIVATE_KEY secret is missing" && exit 1)
+          if [ -n "${{ secrets.EC2_HOST }}" ] && [ -n "${{ secrets.EC2_USER }}" ] && [ -n "${{ secrets.EC2_SSH_PRIVATE_KEY }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create SSH key file
+        if: steps.check_secrets.outputs.enabled == 'true'
         run: |
           install -m 600 /dev/null /tmp/deploy_key.pem
           printf "%s" "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > /tmp/deploy_key.pem
 
       - name: Create Ansible inventory
+        if: steps.check_secrets.outputs.enabled == 'true'
         run: |
           cat > /tmp/inventory.ini <<'EOF'
           [app]
@@ -102,10 +107,16 @@ jobs:
           EOF
 
       - name: Deploy with Ansible
+        if: steps.check_secrets.outputs.enabled == 'true'
         run: |
           ansible-playbook -i /tmp/inventory.ini infra/ansible/deploy.yml \
             --extra-vars "repo_url=https://github.com/${{ github.repository }}.git repo_branch=main app_dir=/opt/smart_hostel"
 
       - name: Post-deploy health check
+        if: steps.check_secrets.outputs.enabled == 'true'
         run: |
           curl --fail --retry 20 --retry-delay 5 "http://${{ secrets.EC2_HOST }}:5000/debug/db" > /dev/null
+
+      - name: Skip deploy (missing secrets)
+        if: steps.check_secrets.outputs.enabled != 'true'
+        run: echo "CD skipped. Add EC2_HOST, EC2_USER, and EC2_SSH_PRIVATE_KEY secrets to enable deployment."
