@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smart-hostel-app
+  namespace: smart-hostel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: smart-hostel-app
+  template:
+    metadata:
+      labels:
+        app: smart-hostel-app
+    spec:
+      containers:
+        - name: smart-hostel-app
+          image: YOUR_DOCKERHUB_USERNAME/smart-hostel:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: DB_HOST
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: DB_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: DB_NAME

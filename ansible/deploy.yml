@@ -1,0 +1,43 @@
+---
+- name: Deploy Smart Hostel with Docker Compose
+  hosts: app
+  become: true
+
+  vars:
+    app_dir: /opt/smart_hostel
+    repo_url: https://github.com/YOUR_USERNAME/smart_hostel_final.git
+    repo_branch: main
+
+  tasks:
+    - name: Install required system packages
+      apt:
+        name:
+          - git
+          - docker.io
+          - docker-compose-v2
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker service is running
+      service:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Create app directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Clone or update repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: "{{ repo_branch }}"
+        force: true
+
+    - name: Build and start containers
+      command: docker compose up -d --build
+      args:
+        chdir: "{{ app_dir }}"
