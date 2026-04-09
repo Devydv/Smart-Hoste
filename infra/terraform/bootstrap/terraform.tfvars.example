@@ -1,0 +1,4 @@
+aws_region       = "us-east-1"
+project_name     = "smart-hostel"
+state_bucket_name = ""
+lock_table_name  = "smart-hostel-tf-locks"

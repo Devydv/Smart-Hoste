@@ -114,6 +114,36 @@ Files:
 - `main.tf`
 - `outputs.tf`
 - `terraform.tfvars.example`
+- `backend.hcl.example`
+
+### One-Time Remote State Setup (Recommended)
+
+Use Terraform bootstrap to create S3 remote state and DynamoDB locking:
+
+```bash
+cd infra/terraform/bootstrap
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform apply
+terraform output backend_hcl_snippet
+```
+
+IAM permissions required for this bootstrap step:
+
+1. `s3:CreateBucket`
+2. `s3:PutBucketVersioning`
+3. `s3:PutEncryptionConfiguration`
+4. `s3:PutBucketPublicAccessBlock`
+5. `dynamodb:CreateTable`
+
+Copy output values into main backend config:
+
+```bash
+cd ../
+cp backend.hcl.example backend.hcl
+# Paste bucket/table values from bootstrap output
+terraform init -migrate-state -backend-config=backend.hcl
+```
 
 Usage:
 
