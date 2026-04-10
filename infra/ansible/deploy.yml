@@ -2,6 +2,7 @@
 - name: Deploy Smart Hostel with Docker Compose
   hosts: app
   become: true
+  gather_facts: false
 
   vars:
     app_dir: /opt/smart_hostel
