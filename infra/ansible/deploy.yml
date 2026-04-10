@@ -17,6 +17,7 @@
           - docker-compose
         state: present
         update_cache: true
+        cache_valid_time: 3600
 
     - name: Ensure Docker service is running
       service:
@@ -46,9 +47,9 @@
     - name: Build and start containers
       shell: |
         if docker compose version >/dev/null 2>&1; then
-          docker compose up -d --build
+          docker compose up -d
         else
-          docker-compose up -d --build
+          docker-compose up -d
         fi
       args:
         chdir: "{{ app_dir }}"
