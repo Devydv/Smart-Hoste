@@ -30,6 +30,12 @@
         state: directory
         mode: "0755"
 
+    - name: Allow root to manage repo in deployment directory
+      shell: |
+        git config --global --get-all safe.directory | grep -Fx "{{ app_dir }}" >/dev/null || \
+        git config --global --add safe.directory "{{ app_dir }}"
+      changed_when: false
+
     - name: Clone or update repository
       git:
         repo: "{{ repo_url }}"
