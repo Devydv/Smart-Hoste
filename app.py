@@ -199,13 +199,14 @@ def logout():
 def student_dashboard():
     if not login_required("STUDENT"): return redirect(url_for("login"))
     student_id = session.get("student_id")
-    conn = get_db_connection(); cursor = conn.cursor(dictionary=True)
+    # buffered=True avoids "Unread result found" when a query can return multiple rows.
+    conn = get_db_connection(); cursor = conn.cursor(dictionary=True, buffered=True)
     cursor.execute("SELECT * FROM students WHERE student_id=%s", (student_id,))
     student = cursor.fetchone()
     room = None
     try:
         cursor.execute(
-            "SELECT r.* FROM rooms r JOIN room_allocation ra ON r.room_id=ra.room_id WHERE ra.student_id=%s AND ra.status='Approved'",
+            "SELECT r.* FROM rooms r JOIN room_allocation ra ON r.room_id=ra.room_id WHERE ra.student_id=%s AND ra.status='Approved' ORDER BY ra.allocated_at DESC LIMIT 1",
             (student_id,))
         room = cursor.fetchone()
     except Exception: pass
