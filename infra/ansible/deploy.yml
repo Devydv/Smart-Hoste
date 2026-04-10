@@ -7,6 +7,7 @@
     app_dir: /opt/smart_hostel
     repo_url: https://github.com/Devydv/Smart-Hoste.git
     repo_branch: main
+    install_packages: false
 
   tasks:
     - name: Install required system packages
@@ -18,6 +19,7 @@
         state: present
         update_cache: true
         cache_valid_time: 3600
+      when: install_packages | bool
 
     - name: Ensure Docker service is running
       service:
