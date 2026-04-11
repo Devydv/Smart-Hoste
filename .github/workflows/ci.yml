@@ -1,12 +1,18 @@
-name: CI
+name: CI-CD
 
 on:
   push:
     branches: ["main", "dev"]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: smart-hostel-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test-build-scan:
+  ci:
+    name: Lint, Test, Build
     runs-on: ubuntu-latest
 
     services:
@@ -35,7 +41,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -48,34 +54,25 @@ jobs:
       - name: Lint
         run: ruff check tests db.py
 
-      - name: Run tests
+      - name: Test
         run: pytest -q
 
-      - name: Build Docker image
+      - name: Docker build
         run: docker build -t smart-hostel:${{ github.sha }} .
 
-      - name: Trivy file system scan
-        run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            aquasec/trivy:0.52.2 \
-            fs --exit-code 0 --no-progress /workspace
-
-  deploy-ec2:
-    name: CD Deploy to EC2
+  cd:
+    name: Deploy To EC2
     runs-on: ubuntu-latest
-    needs: test-build-scan
+    needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     env:
       ANSIBLE_HOST_KEY_CHECKING: "False"
-      ANSIBLE_TIMEOUT: "60"
-      ANSIBLE_BECOME_TIMEOUT: "60"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -86,71 +83,48 @@ jobs:
           pip install "ansible-core>=2.16,<2.18"
 
       - name: Check deployment secrets
-        id: check_secrets
+        id: secrets
         run: |
           if [ -n "${{ secrets.EC2_HOST }}" ] && [ -n "${{ secrets.EC2_USER }}" ] && [ -n "${{ secrets.EC2_SSH_PRIVATE_KEY }}" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create SSH key file
-        if: steps.check_secrets.outputs.enabled == 'true'
+      - name: Skip deploy when secrets are missing
+        if: steps.secrets.outputs.ready != 'true'
+        run: echo "CD skipped. Set EC2_HOST, EC2_USER, and EC2_SSH_PRIVATE_KEY repository secrets."
+
+      - name: Create SSH key
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           install -m 600 /dev/null /tmp/deploy_key.pem
           printf "%s" "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > /tmp/deploy_key.pem
 
-      - name: Create Ansible inventory
-        if: steps.check_secrets.outputs.enabled == 'true'
+      - name: Create inventory
+        if: steps.secrets.outputs.ready == 'true'
         run: |
           cat > /tmp/inventory.ini <<'EOF'
           [app]
-          app-server ansible_host=${{ secrets.EC2_HOST }} ansible_user=${{ secrets.EC2_USER }} ansible_ssh_private_key_file=/tmp/deploy_key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ConnectionAttempts=6 -o ServerAliveInterval=15 -o ServerAliveCountMax=4'
+          app-server ansible_host=${{ secrets.EC2_HOST }} ansible_user=${{ secrets.EC2_USER }} ansible_ssh_private_key_file=/tmp/deploy_key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ConnectTimeout=20 -o ConnectionAttempts=5'
           EOF
 
-      - name: Pre-deploy SSH connectivity check
-        if: steps.check_secrets.outputs.enabled == 'true'
-        run: |
-          for attempt in 1 2 3 4 5 6; do
-            if ssh -i /tmp/deploy_key.pem -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=30 "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" "echo SSH_OK"; then
-              exit 0
-            fi
-            echo "SSH check failed on attempt ${attempt}, retrying..."
-            sleep 10
-          done
-          echo "SSH connectivity check failed after retries."
-          exit 1
-
       - name: Deploy with Ansible
-        if: steps.check_secrets.outputs.enabled == 'true'
+        if: steps.secrets.outputs.ready == 'true'
         run: |
-          for attempt in 1 2 3; do
-            echo "Ansible deploy attempt ${attempt}..."
-            if timeout 20m ansible-playbook -i /tmp/inventory.ini infra/ansible/deploy.yml \
-              --extra-vars "repo_url=https://github.com/${{ github.repository }}.git repo_branch=main app_dir=/opt/smart_hostel install_packages=false"; then
-              exit 0
-            fi
-            echo "Deploy attempt ${attempt} failed. Retrying in 20s..."
-            sleep 20
-          done
-          echo "Deploy failed after 3 attempts."
-          exit 1
+          ansible-playbook -i /tmp/inventory.ini infra/ansible/deploy.yml \
+            --extra-vars "repo_url=https://github.com/${{ github.repository }}.git repo_branch=main app_dir=/opt/smart_hostel install_packages=true"
 
-      - name: Post-deploy health check
-        if: steps.check_secrets.outputs.enabled == 'true'
+      - name: Verify health
+        if: steps.secrets.outputs.ready == 'true'
         run: |
-          sleep 5
-          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24; do
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
             if curl --fail --max-time 10 "http://${{ secrets.EC2_HOST }}:5000/debug/db" > /dev/null; then
               echo "Health check passed on attempt ${attempt}."
               exit 0
             fi
-            echo "Health check failed on attempt ${attempt}, retrying in 5s..."
-            sleep 5
+            echo "Health check failed on attempt ${attempt}. Retrying in 10s..."
+            sleep 10
           done
-          echo "Health check failed after retries."
+          echo "Health check failed."
           exit 1
-
-      - name: Skip deploy (missing secrets)
-        if: steps.check_secrets.outputs.enabled != 'true'
-        run: echo "CD skipped. Add EC2_HOST, EC2_USER, and EC2_SSH_PRIVATE_KEY secrets to enable deployment."
